@@ -5,6 +5,8 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
+let g:sql_profiles = [{'name': 'sqlite3', 'dsn': ':memory:'}]
+
 function! s:echo_err(msg) abort
   echohl ErrorMsg
   echom 'sql_client.vim: ' .. a:msg
@@ -23,6 +25,8 @@ endfunction
 "   },
 " ]
 let s:connection_pool = []
+
+let s:current_connection = -1
 
 function! sql_client#get_connection_pool() abort
   return s:connection_pool
@@ -78,17 +82,15 @@ endfunction
 " context: {
 "   profiles: [
 "     {
-"       'name': 'mysql',
-"       'host': 'localhost',
-"       'user': 'gorilla',
-"       'password': 'password',
+"       'name': 'slqite3',
+"       'dsn': ':memory:',
 "     }
 "   ]
 " }
 function! sql_client#new_connection(context, id, selected) abort
   let profile = a:context.profiles[a:selected-1]
 
-  for k in ['name', 'host', 'user', 'password']
+  for k in ['name', 'dsn']
     if !has_key(profile, k)
       call s:echo_err('not found profile.' .. k)
       return
@@ -102,7 +104,35 @@ function! sql_client#new_connection(context, id, selected) abort
     endif
   endfor
 
-  cal add(s:connection_pool, profile)
+  let channel = ch_open("localhost:9999", {
+        \ 'mode': 'raw',
+        \ 'callback': function('s:channel_callback')
+        \ })
+
+  if ch_status(channel) is 'closed'
+    call s:echo_err('cannot connect ' .. porfile.name)
+    return
+  endif
+
+  call ch_sendraw(channel, "sqlite3: connection\ndsn=:memory:")
+  cal add(s:connection_pool, {'name': profile.name, 'channel': channel})
+  let s:current_connection = 0
+endfunction
+
+function! s:channel_callback(channel, msg) abort
+  echom json_decode(a:msg)
+endfunction
+
+function! sql_client#exec_sql(sql) abort
+  let conn = s:connection_pool[s:current_connection]
+
+  call ch_sendraw(conn.channel, "sqlite3: exec\n" .. a:sql)
+endfunction
+
+function! sql_client#query_sql(sql) abort
+  let conn = s:connection_pool[s:current_connection]
+
+  call ch_sendraw(conn.channel, "sqlite3: query\n" .. a:sql)
 endfunction
 
 let &cpo = s:save_cpo
