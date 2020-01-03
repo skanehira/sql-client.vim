@@ -174,10 +174,20 @@ function! s:channel_callback(channel, msg) abort
     call result_table.add_row(row)
   endfor
 
-  " new window
-  new | set buftype=nofile
+  " if buf is already exist
+  let bufname = '[SQL OUTPUT]'
+  if bufexists(bufname)
+    let buf = bufnr(bufname)
+    if empty(win_findbuf(buf))
+      exec 'new | e' bufname '| %d_'
+    endif
+  " if buf not exist, create new window
+  else
+      exec 'new' bufname '| %d_'
+      set buftype=nofile | nnoremap <buffer> q :bw<CR>
+  endif
 
-  call setline(1, result_table.stringify())
+  call setbufline(bufname, 1, result_table.stringify())
 endfunction
 
 function! sql_client#exec_sql(sql) abort
