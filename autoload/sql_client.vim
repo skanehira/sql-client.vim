@@ -5,6 +5,9 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
+let s:V = vital#sql_client#new()
+let s:TABLE = s:V.import('Text.Table')
+
 let g:sql_profiles = [{'name': 'sqlite3', 'dbtype': 'sqlite3', 'dsn': ':memory:'}]
 
 function! s:echo_err(msg) abort
@@ -144,8 +147,37 @@ function! s:channel_callback(channel, msg) abort
     return
   endif
 
-  " TODO implement create table
-  echom res
+  " create table
+  " {'status': 'success', 'method': 'query', 'body': '[{"id":1,"name":"gorilla"},{"id":2,"name":"cat"}]'}
+  let body = json_decode(res.body)
+  if empty(body)
+    call s:echo_err('body is empty')
+    return
+  endif
+
+  let header = keys(body[0])
+  let columns = []
+  for v in header
+    let columns = add(columns, {})
+  endfor
+
+  let result_table = s:TABLE.new({
+        \ 'columns': columns,
+        \ 'header' : header,
+        \ })
+
+  for b in body
+    let row = []
+    for h in header
+      call add(row, b[h])
+    endfor
+    call result_table.add_row(row)
+  endfor
+
+  " new window
+  new | set buftype=nofile
+
+  call setline(1, result_table.stringify())
 endfunction
 
 function! sql_client#exec_sql(sql) abort
