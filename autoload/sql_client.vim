@@ -139,7 +139,9 @@ function! s:channel_callback(channel, msg) abort
 
   if res.status is 'error'
     call s:echo_err(res.body)
-    let s:selected_db = {}
+    if res.method is 'connection'
+      let s:selected_db = {}
+    endif
     return
   endif
 
