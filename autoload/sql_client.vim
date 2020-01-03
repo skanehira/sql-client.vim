@@ -10,6 +10,8 @@ let s:TABLE = s:V.import('Text.Table')
 
 let g:sql_profiles = [{'name': 'sqlite3', 'dbtype': 'sqlite3', 'dsn': ':memory:'}]
 
+let s:bufname = '[SQL OUTPUT]'
+
 function! s:echo_err(msg) abort
   echohl ErrorMsg
   echom 'sql_client.vim: ' .. a:msg
@@ -175,19 +177,20 @@ function! s:channel_callback(channel, msg) abort
   endfor
 
   " if buf is already exist
-  let bufname = '[SQL OUTPUT]'
-  if bufexists(bufname)
-    let buf = bufnr(bufname)
-    if empty(win_findbuf(buf))
-      exec 'new | e' bufname '| %d_'
+  if bufexists(s:bufname)
+    let buf = bufnr(s:bufname)
+    let winid = win_findbuf(buf)
+    if empty(winid)
+      exec 'new | e' s:bufname '| %d_'
     endif
+    call win_execute(winid[0], '%d_')
   " if buf not exist, create new window
   else
-      exec 'new' bufname '| %d_'
+      exec 'new' s:bufname '| %d_'
       set buftype=nofile | nnoremap <buffer> q :bw<CR>
   endif
 
-  call setbufline(bufname, 1, result_table.stringify())
+  call setbufline(s:bufname, 1, result_table.stringify())
 endfunction
 
 function! sql_client#exec_sql(sql) abort
