@@ -155,7 +155,7 @@ function! s:channel_callback(channel, msg) abort
   " {'status': 'success', 'method': 'query', 'body': '[{"id":1,"name":"gorilla"},{"id":2,"name":"cat"}]'}
   let body = json_decode(res.body)
   if empty(body)
-    call s:echo_err('body is empty')
+    call s:echo_err('no result')
     return
   endif
 
