@@ -5,7 +5,7 @@
 let s:save_cpo = &cpo
 set cpo&vim
 
-let g:sql_profiles = [{'name': 'sqlite3', 'dsn': ':memory:'}]
+let g:sql_profiles = [{'name': 'sqlite3', 'dbtype': 'sqlite3', 'dsn': ':memory:'}]
 
 function! s:echo_err(msg) abort
   echohl ErrorMsg
@@ -20,13 +20,12 @@ endfunction
 "     'channel': channel,
 "   },
 "   {
-"     'name': 'sqlite',
+"     'name': 'sqlite3',
 "     'channel': channel,
 "   },
 " ]
 let s:connection_pool = []
-
-let s:current_connection = -1
+let s:selected_db = {}
 
 function! sql_client#get_connection_pool() abort
   return s:connection_pool
@@ -34,31 +33,35 @@ endfunction
 
 " OUT:
 " {
-"   'name': 'sqlite',
+"   'name': 'sqlite3',
 "   'channel': channel,
 " }
-function! sql_client#get_connection(name) abort
-  let result = filter(s:connection_pool, printf('v:val.name is "%s"', a:name))
+function! sql_client#get_connection() abort
+  if empty(s:selected_db)
+    return {}
+  endif
+
+  let result = filter(s:connection_pool,
+        \ printf('v:val.dbtype is "%s" && v:val.name is "%s"',
+        \ s:selected_db.dbtype, s:selected_db.name))
+
   if len(result) > 0
     return result[0]
   endif
+
   return {}
 endfunction
 
 " profiles [
 "   {
 "       'name': 'mydb',
-"       'type': 'mysql',
-"       'host': 'localhost',
-"       'user': 'gorilla',
-"       'password': 'password',
+"       'dbtype': 'mysql',
+"       'dsn': 'gorilla:gorilla@localhost'
 "   },
 "   {
 "       'name': 'test_db',
-"       'type': 'sqlite',
-"       'host': 'localhost',
-"       'user': 'gorilla',
-"       'password': 'password',
+"       'dbtype': 'sqlite',
+"       'dsn': ':memory:'
 "   }
 " ]
 function! sql_client#profiles() abort
@@ -83,6 +86,7 @@ endfunction
 "   profiles: [
 "     {
 "       'name': 'slqite3',
+"       'dbtype': 'sqlite3',
 "       'dsn': ':memory:',
 "     }
 "   ]
@@ -90,13 +94,15 @@ endfunction
 function! sql_client#new_connection(context, id, selected) abort
   let profile = a:context.profiles[a:selected-1]
 
-  for k in ['name', 'dsn']
+  " validate profile
+  for k in ['name', 'dbtype', 'dsn']
     if !has_key(profile, k)
       call s:echo_err('not found profile.' .. k)
       return
     endif
   endfor
 
+  " if already connected, do nothing
   for c in s:connection_pool
     if c.name is profile.name
       call s:echo_err(profile.name .. ' is already connected')
@@ -114,25 +120,59 @@ function! sql_client#new_connection(context, id, selected) abort
     return
   endif
 
-  call ch_sendraw(channel, "sqlite3: connection\ndsn=:memory:")
-  cal add(s:connection_pool, {'name': profile.name, 'channel': channel})
-  let s:current_connection = 0
+  let req = s:build_request(profile.dbtype, 'connection', 'dsn=' .. profile.dsn)
+  call ch_sendraw(channel, req)
+
+  let s:selected_db = {
+        \ 'name': profile.name,
+        \ 'dbtype': profile.dbtype,
+        \ }
 endfunction
 
 function! s:channel_callback(channel, msg) abort
-  echom json_decode(a:msg)
+  let res = json_decode(a:msg)
+
+  if res.status is 'error'
+    call s:echo_err(res.body)
+    let s:selected_db = {}
+    return
+  endif
+
+  if res.method is 'connection'
+    cal add(s:connection_pool, {'name': s:selected_db.name, 'dbtype': res.body, 'channel': a:channel})
+    echom 'connected'
+    return
+  endif
+
+  " TODO implement create table
+  echom res
 endfunction
 
 function! sql_client#exec_sql(sql) abort
-  let conn = s:connection_pool[s:current_connection]
-
-  call ch_sendraw(conn.channel, "sqlite3: exec\n" .. a:sql)
+  call s:send_req('exec', a:sql)
 endfunction
 
 function! sql_client#query_sql(sql) abort
-  let conn = s:connection_pool[s:current_connection]
+  call s:send_req('query', a:sql)
+endfunction
 
-  call ch_sendraw(conn.channel, "sqlite3: query\n" .. a:sql)
+function! s:send_req(querytype, sql) abort
+  let conn = sql_client#get_connection()
+  if empty(conn)
+    call s:echo_err('cannot get connection')
+    return
+  endif
+
+  let req = s:build_request(conn.dbtype, a:querytype, a:sql)
+  call ch_sendraw(conn.channel, req)
+endfunction
+
+" build request
+" e.g
+" sqlite3: exec
+" create table users(id int, name varchar(255))
+function! s:build_request(dbtype, querytype, body) abort
+  return printf("%s: %s\n%s", a:dbtype, a:querytype, a:body)
 endfunction
 
 let &cpo = s:save_cpo
