@@ -149,6 +149,13 @@ function! s:channel_callback(channel, msg) abort
     cal add(s:connection_pool, {'name': s:selected_db.name, 'dbtype': res.body, 'channel': a:channel})
     echom 'connected'
     return
+  elseif res.method is 'exec'
+    if res.status is 'error'
+      call s:echo_err(res.body)
+      return
+    endif
+    echom res.body
+    return
   endif
 
   " create table
@@ -195,12 +202,14 @@ function! s:channel_callback(channel, msg) abort
   call setbufline(s:bufname, 1, result_table.stringify())
 endfunction
 
-function! sql_client#exec_sql(sql) abort
-  call s:send_req('exec', a:sql)
+function! sql_client#exec_sql(start, end) abort
+  let sql = join(getline(a:start, a:end), "\n")
+  call s:send_req('exec', sql)
 endfunction
 
-function! sql_client#query_sql(sql) abort
-  call s:send_req('query', a:sql)
+function! sql_client#query_sql(start, end) abort
+  let sql = join(getline(a:start, a:end), "\n")
+  call s:send_req('query', sql)
 endfunction
 
 function! s:send_req(querytype, sql) abort
