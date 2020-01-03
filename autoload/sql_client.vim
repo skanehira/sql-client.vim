@@ -24,12 +24,11 @@ endfunction
 "     'channel': channel,
 "   },
 " ]
-let s:connection_pool = []
-let s:selected_db = {}
-
-function! sql_client#get_connection_pool() abort
-  return s:connection_pool
-endfunction
+if !exists('g:loaded_sql_client_autoload')
+  let s:connection_pool = []
+  let s:selected_db = {}
+endif
+let g:loaded_sql_client_autoload = 1
 
 " OUT:
 " {
