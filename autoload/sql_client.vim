@@ -32,7 +32,8 @@ let g:loaded_sql_client_autoload = 1
 
 " OUT:
 " {
-"   'name': 'sqlite3',
+"   'name': 'test_db',
+"   'dbtype': 'sqlite3',
 "   'channel': channel,
 " }
 function! sql_client#get_connection() abort
