@@ -8,8 +8,6 @@ set cpo&vim
 let s:V = vital#sql_client#new()
 let s:TABLE = s:V.import('Text.Table')
 
-let g:sql_profiles = [{'name': 'sqlite3', 'dbtype': 'sqlite3', 'dsn': ':memory:'}]
-
 let s:bufname = '[SQL OUTPUT]'
 
 function! s:echo_err(msg) abort
